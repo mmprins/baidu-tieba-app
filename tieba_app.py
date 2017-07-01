@@ -92,7 +92,7 @@ class BaiduTieba(object):
 class htmlparser(HTMLParser):
     count,title_dict=1,{}
     def title_clear(self):
-        self.title_dict={}
+        count,self.title_dict=1,{}
     def handle_starttag(self,tag,attrs):
         if tag == 'a':
             for name,value in attrs:
