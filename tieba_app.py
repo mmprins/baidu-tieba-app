@@ -1,10 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-import json,os
+import json,os,time
 import http.cookiejar
 import requests
 from html.parser import HTMLParser
 from urllib import parse
+class htmlparser(HTMLParser):
+    count,title_dict=1,{}
+    def title_clear(self):
+        self.count,self.title_dict=1,{}
+    def feedupdate(self,func):#用于feed方法重置count和title_dict的值
+        def wrapper(*args,**kw):
+            self.count,self.title_dict=1,{}
+            print('title dicts reset')
+            return func(*args,**kw)
+        return wrapper
+    def handle_starttag(self,tag,attrs):
+        if tag == 'a':
+            for name,value in attrs:
+                if name == 'class':
+                    if value == ' card_title_fname':
+                        for name,value in attrs:
+                            if name == 'href':
+                                print('贴吧名称：%s'%(parse.unquote(value)))
+                    if value == 'j_th_tit ':
+                        print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
+                        self.title_dict[self.count]=(attrs[0][1][3:13],attrs[1][1])
+                        self.count+=1
 class BaiduTieba(object):
     LOGIN_ERR_MSGS = {
     "1": "用户名格式错误，请重新输入",
@@ -79,9 +101,10 @@ class BaiduTieba(object):
         self.title_dict={}
         req=self.Session(agent).get(url)
         P=htmlparser()
-        P.title_dict={}
+        P.feed=P.feedupdate(P.feed)#feed方法装饰升级
         P.feed(req.text)
         self.title_dict=P.title_dict
+        return req
     def reply(self,index,ptype='reply',*args):
         pass
     def SaverHtml(self,req):
@@ -89,21 +112,5 @@ class BaiduTieba(object):
             fp.write(req.text)
             print('save to /tmp/samp.html')
     pass
-class htmlparser(HTMLParser):
-    count,title_dict=1,{}
-    def title_clear(self):
-        count,self.title_dict=1,{}
-    def handle_starttag(self,tag,attrs):
-        if tag == 'a':
-            for name,value in attrs:
-                if name == 'class':
-                    if value == ' card_title_fname':
-                        for name,value in attrs:
-                            if name == 'href':
-                                print('贴吧名称：%s'%(parse.unquote(value)))
-                    if value == 'j_th_tit ':
-                        print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
-                        self.title_dict[self.count]=(attrs[0][1][3:13],attrs[1][1])
-                        self.count+=1
 if __name__ == '__main__':
     pass
