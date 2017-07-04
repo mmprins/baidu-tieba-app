@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-import json,os,time
+import json,os,sys
 import http.cookiejar
 import requests
 from html.parser import HTMLParser
@@ -12,18 +12,18 @@ class htmlparser(HTMLParser):
     def feedupdate(self,func):#用于feed方法重置count和title_dict的值
         def wrapper(*args,**kw):
             self.count,self.title_dict=1,{}
-            print('title dicts reset')
+            #print('title dicts reset')
             return func(*args,**kw)
         return wrapper
     def handle_starttag(self,tag,attrs):
         if tag == 'a':
             for name,value in attrs:
-                if name == 'class':
+                if name == 'class':#class="card_title_fname"为贴吧名称
                     if value == ' card_title_fname':
                         for name,value in attrs:
                             if name == 'href':
                                 print('贴吧名称：%s'%(parse.unquote(value)))
-                    if value == 'j_th_tit ':
+                    if value == 'j_th_tit ':#class="j_th_tit"为主题贴
                         print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
                         self.title_dict[self.count]=(attrs[0][1][3:13],attrs[1][1])
                         self.count+=1
@@ -69,13 +69,21 @@ class BaiduTieba(object):
     def __init__(self,user=None,passwd=None):
         self.user=user
         self.passwd=passwd
-        self.loginTest()
+        self.cj=self.loginTest()
     def loginTest(self):
-        pass
+        try:
+            cj=http.cookiejar.MozillaCookieJar(self.CookiePath+'/mozilla-cookies.txt')
+            cj.load()
+            print('cookies login correct')
+            return cj
+        except:
+            print('cookie file seems discorrect,you can make a new cookies file \nfrom firefox firebug and save to your ${HOME}/baidu-cookies')
+            self.mozilla_cookies_resave()
     def user_agent(self,agent):
         with open('user-agent.json') as fp:
             return json.load(fp)[agent]
     def Mozilla_Firebug_cookies_checker(self,path='/cookies.txt'):
+        '''将firebug模式的cookies.txt转换为标准格式的MozillaCookieJar'''
         cookie='# Netscape HTTP Cookie File\n'
         with open(self.CookiePath+path,'r') as fp:
             for line in fp.readlines():
@@ -83,6 +91,7 @@ class BaiduTieba(object):
                     cookie+=line
         return cookie
     def mozilla_cookies_resave(self):
+        '''重新生成一个cookies文件'''
         try:
             with open(self.CookiePath+'/mozilla-cookies.txt','w') as fp:
                 fp.write(self.Mozilla_Firebug_cookies_checker())
@@ -91,9 +100,8 @@ class BaiduTieba(object):
             print('cookies file discorrect!')
     def Session(self,agent="Ie"):
         S=requests.Session()
-        cj=http.cookiejar.MozillaCookieJar(self.CookiePath+'/mozilla-cookies.txt')
-        cj.load()
-        S.cookies.update(cj)
+        if self.cj :
+            S.cookies.update(self.cj)
         S.headers.update({'User-Agent':self.user_agent(agent)})
         return S
     def TiebaList(self,tieba_name,agent="Ie"):
@@ -113,4 +121,9 @@ class BaiduTieba(object):
             print('save to /tmp/samp.html')
     pass
 if __name__ == '__main__':
-    pass
+    samp=BaiduTieba(user=None,passwd=None)
+    if len(sys.argv) == 1:
+        name=input("请输入贴吧名称:\n")
+        samp.TiebaList(name)
+    else:
+        pass
