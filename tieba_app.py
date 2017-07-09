@@ -65,7 +65,11 @@ class BaiduTieba(object):
     TBS_URL="http://tieba.baidu.com/dc/common/tbs"
     VCODE_URL="http://tieba.baidu.com/f/user/json_vocde? lm=%s&rs10=2&rs1=0&t=0.7"
     IMG_URL="http://tieba.baidu.com/cgi-bin/genimg?%s"
-    title_dict={}
+    try:
+        with open('title_dict.json','r') as fp:
+            title_dict=json.load(fp)
+    except:
+        pass
     def __init__(self,user=None,passwd=None):
         self.user=user
         self.passwd=passwd
@@ -112,6 +116,8 @@ class BaiduTieba(object):
         P.feed=P.feedupdate(P.feed)#feed方法装饰升级
         P.feed(req.text)
         self.title_dict=P.title_dict
+        with open('title_dict.json','w') as fp:
+            fp.write(json.dumps(P.title_dict))
         return req
     def reply(self,index,ptype='reply',*args):
         pass
