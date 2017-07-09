@@ -66,7 +66,7 @@ class BaiduTieba(object):
     VCODE_URL="http://tieba.baidu.com/f/user/json_vocde? lm=%s&rs10=2&rs1=0&t=0.7"
     IMG_URL="http://tieba.baidu.com/cgi-bin/genimg?%s"
     try:
-        with open('title_dict.json','r') as fp:
+        with open('title_dict.log','r') as fp:
             title_dict=json.load(fp)
     except:
         pass
@@ -79,6 +79,11 @@ class BaiduTieba(object):
             cj=http.cookiejar.MozillaCookieJar(self.CookiePath+'/mozilla-cookies.txt')
             cj.load()
             print('cookies login correct')
+            #req=self.Session().get(self.TBS_URL)
+            #if json.loads(req.text)['is_login'] == 1:
+            #    print("使用cookie登陆成功")
+            #else:
+            #    print("cookie登陆失败，可能已经过期")
             return cj
         except:
             print('cookie file seems discorrect,you can make a new cookies file \nfrom firefox firebug and save to your ${HOME}/baidu-cookies')
@@ -116,7 +121,7 @@ class BaiduTieba(object):
         P.feed=P.feedupdate(P.feed)#feed方法装饰升级
         P.feed(req.text)
         self.title_dict=P.title_dict
-        with open('title_dict.json','w') as fp:
+        with open('title_dict.log','w') as fp:
             fp.write(json.dumps(P.title_dict))
         return req
     def reply(self,index,ptype='reply',*args):
