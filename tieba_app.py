@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-import json,os,sys
+import json,os,sys,re
 import http.cookiejar
 import requests
 from html.parser import HTMLParser
 from urllib import parse
 class titleparser(HTMLParser):
+    '''用于解析贴吧主页，发帖url及名称等'''
     count,title_dict=1,{}
     def title_clear(self):
         self.count,self.title_dict=1,{}
@@ -30,7 +31,14 @@ class titleparser(HTMLParser):
 class subjectparser(HTMLParser):
     def handle_starttag(self,tag,attrs):
         if tag == 'div':
-            
+            pass
+class subjectauthorParser(HTMLParser):
+    '''用于解析主题贴内各楼层作者信息等'''
+    def handle_starttag(self,tag,attrs):
+        if tag == 'a':
+            for name,value in attrs:
+                if re.match(r'p_author_name',value):
+                    print(attrs)
 class BaiduTieba(object):
     LOGIN_ERR_MSGS = {
     "1": "用户名格式错误，请重新输入",
