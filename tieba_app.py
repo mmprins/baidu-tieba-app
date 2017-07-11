@@ -5,7 +5,7 @@ import http.cookiejar
 import requests
 from html.parser import HTMLParser
 from urllib import parse
-class titleparser(HTMLParser):
+class TitleParser(HTMLParser):
     '''用于解析贴吧主页，发帖url及名称等'''
     count,title_dict=1,{}
     def title_clear(self):
@@ -28,11 +28,11 @@ class titleparser(HTMLParser):
                         print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
                         self.title_dict[self.count]=(attrs[0][1][3:13],attrs[1][1])
                         self.count+=1
-class subjectparser(HTMLParser):
-    def handle_starttag(self,tag,attrs):
-        if tag == 'div':
-            pass
-class subjectauthorParser(HTMLParser):
+class SubjectDataParser(HTMLParser):
+    SubjectData=''
+    def handle_data(self,data):
+        self.SubjectData+=data
+class SubjectAuthorParser(HTMLParser):
     '''用于解析主题贴内各楼层作者信息等'''
     def handle_starttag(self,tag,attrs):
         if tag == 'a':
@@ -136,7 +136,7 @@ class BaiduTieba(object):
         url='https://tieba.baidu.com/f?kw=%s&fr=index'%tieba_name
         self.title_dict={}
         req=self.Session(agent).get(url)
-        P=titleparser()
+        P=TitleParser()
         P.feed=P.feedupdate(P.feed)#feed方法装饰升级
         P.feed(req.text)
         self.title_dict=P.title_dict
@@ -148,7 +148,7 @@ class BaiduTieba(object):
         if self.title_dict:
             sub_url="https://tieba.baidu.com/p/%s?pn=%d"%(self.title_dict[title_index][0],page_number)
             req=self.Session().get(sub_url)
-            return req
+            return re.findall(r'"post_content_\d+".*?</div>',req.text)
         else:
             print('no title_dict detected,run TiebaList first!')
     def reply(self,index,ptype='reply',*args):
