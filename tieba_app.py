@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-import json,os,sys
+import json,os,sys,re
 import http.cookiejar
 import requests
 from html.parser import HTMLParser
 from urllib import parse
-class titleparser(HTMLParser):
+class TitleParser(HTMLParser):
+    '''用于解析贴吧主页，发帖url及名称等'''
     count,title_dict=1,{}
-    def title_clear(self):
-        self.count,self.title_dict=1,{}
-    def feedupdate(self,func):#用于feed方法重置count和title_dict的值
-        def wrapper(*args,**kw):
-            self.count,self.title_dict=1,{}
-            #print('title dicts reset')
-            return func(*args,**kw)
-        return wrapper
     def handle_starttag(self,tag,attrs):
         if tag == 'a':
             for name,value in attrs:
@@ -25,13 +18,22 @@ class titleparser(HTMLParser):
                                 #print('贴吧名称：%s'%(parse.unquote(value)))
                                 self.title_dict['name']=parse.unquote(value)
                     if value == 'j_th_tit ':#class="j_th_tit"为主题贴
-                        #print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
                         self.title_dict[str(self.count)]=(attrs[0][1][3:13],attrs[1][1])
                         self.count+=1
-class subjectparser(HTMLParser):
+class SubjectDataParser(HTMLParser):
+    '''解析楼层数据内容'''
+    SubjectData=''
+    def handle_data(self,data):
+        self.SubjectData+=data
+class SubjectAuthorParser(HTMLParser):
+    '''用于解析主题贴内各楼层作者信息等'''
+    SubjectAuthor=[]
     def handle_starttag(self,tag,attrs):
-        if tag == 'div':
-            pass
+        if tag == 'a':
+            for name,value in attrs:
+                if re.match(r'p_author_name',value):
+                    #print(attrs)
+                    self.SubjectAuthor.append(attrs)
 class BaiduTieba(object):
     LOGIN_ERR_MSGS = {
     "1": "用户名格式错误，请重新输入",
@@ -91,7 +93,7 @@ class BaiduTieba(object):
                 print("cookies登陆失败")
         else:
             pass
-    def _title_print(self):
+    def Title_Print(self):
         print('贴吧名称: %s'%self.title_dict['name'])
         for i in range(len(self.title_dict)-1):#title_dict长度，去掉name
             print('%d.href=/p%s;title=%s'%(i+1,self.title_dict[str(i+1)][0],self.title_dict[str(i+1)][1]))
@@ -124,37 +126,50 @@ class BaiduTieba(object):
         except:
             print('cookies file discorrect!')
     def Session(self,agent="Ie"):
+        '''初始化session环境，设置agent和cookies等'''
         S=requests.Session()
         if self.cj :
             S.cookies.update(self.cj)
         S.headers.update({'User-Agent':self.user_agent(agent)})
         return S
     def TiebaList(self,tieba_name,agent="Ie"):
+        '''根据贴吧名称，发送get请求，打印并保存主题dict表至json对象'''
         url='https://tieba.baidu.com/f?kw=%s&fr=index'%tieba_name
         self.title_dict={}
         req=self.Session(agent).get(url)
-        P=titleparser()
-        P.feed=P.feedupdate(P.feed)#feed方法装饰升级
+        P=TitleParser()
+        P.count,P.title_dict=1,{}
         P.feed(req.text)
         self.title_dict=P.title_dict
-        self._title_print()
+        self.Title_Print()
         with open('title_dict.log','w') as fp:
             fp.write(json.dumps(P.title_dict))
         return req
     def SubjectReader(self,title_index,page_number=1):
+        '''根据主题表内容提交主题序号，发送get请求并读取该主题贴内容'''
         title_index=str(title_index)
+        print('主题:%s\n'%self.title_dict[title_index][1])
         if self.title_dict:
             sub_url="https://tieba.baidu.com/p/%s?pn=%d"%(self.title_dict[title_index][0],page_number)
             req=self.Session().get(sub_url)
-            return req
+            data=re.findall(r'"post_content_\d+".*?</div>',req.text)
+            A=SubjectAuthorParser()
+            A.SubjectAuthor=[]
+            A.feed(req.text)
+            D=SubjectDataParser()
+            for i in range(len(data)):
+                D.SubjectData=''
+                D.feed(data[i])
+                print('#%d楼 作者：%s\n%s'%(i+1,json.loads(A.SubjectAuthor[i][0][1])['un'],D.SubjectData.split(' ')[-1]))
         else:
             print('no title_dict detected,run TiebaList first!')
     def reply(self,index,ptype='reply',*args):
         pass
-    def SaverHtml(self,req):
-        with open('/tmp/samp.html','w') as fp:
+    def SaverHtml(self,req,path='/tmp/samp.html'):
+        '''将贴吧响应网页保存到本地，通常用于测试'''
+        with open(path,'w') as fp:
             fp.write(req.text)
-            print('save to /tmp/samp.html')
+            print('save to %s'%path)
     pass
 if __name__ == '__main__':
     samp=BaiduTieba(user=None,passwd=None)
