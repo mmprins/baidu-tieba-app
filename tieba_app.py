@@ -5,7 +5,7 @@ import http.cookiejar
 import requests
 from html.parser import HTMLParser
 from urllib import parse
-class htmlparser(HTMLParser):
+class titleparser(HTMLParser):
     count,title_dict=1,{}
     def title_clear(self):
         self.count,self.title_dict=1,{}
@@ -22,11 +22,16 @@ class htmlparser(HTMLParser):
                     if value == ' card_title_fname':
                         for name,value in attrs:
                             if name == 'href':
-                                print('贴吧名称：%s'%(parse.unquote(value)))
+                                #print('贴吧名称：%s'%(parse.unquote(value)))
+                                self.title_dict['name']=parse.unquote(value)
                     if value == 'j_th_tit ':#class="j_th_tit"为主题贴
-                        print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
-                        self.title_dict[self.count]=(attrs[0][1][3:13],attrs[1][1])
+                        #print('%d.%s=%s;%s=%s'%(self.count,attrs[0][0],attrs[0][1],attrs[1][0],attrs[1][1]))
+                        self.title_dict[str(self.count)]=(attrs[0][1][3:13],attrs[1][1])
                         self.count+=1
+class subjectparser(HTMLParser):
+    def handle_starttag(self,tag,attrs):
+        if tag == 'div':
+            pass
 class BaiduTieba(object):
     LOGIN_ERR_MSGS = {
     "1": "用户名格式错误，请重新输入",
@@ -59,22 +64,42 @@ class BaiduTieba(object):
     CookiePath=os.path.expanduser('~')+'/baidu-cookies'
     Referer='https://tieba.baidu.com'
     LOGIN_URL="http://passport.baidu.com/?login"
+    USER_INFO="http://tieba.baidu.com/f/user/json_userinfo"
     LOGIN_IMG_URL="http://passport.baidu.com/?verifypic"
     POST_URL="http//tieba.baidu.com/f/commit/thread/add"
     THREAD_URL="http://tieba.baidu.com/f/commit.thread/add"
     TBS_URL="http://tieba.baidu.com/dc/common/tbs"
     VCODE_URL="http://tieba.baidu.com/f/user/json_vocde? lm=%s&rs10=2&rs1=0&t=0.7"
     IMG_URL="http://tieba.baidu.com/cgi-bin/genimg?%s"
-    title_dict={}
+    try:
+        with open('title_dict.log','r') as fp:
+            title_dict=json.load(fp)
+    except:
+        pass
     def __init__(self,user=None,passwd=None):
         self.user=user
         self.passwd=passwd
-        self.cj=self.loginTest()
-    def loginTest(self):
+        self.cj=self._CookieTest()
+        self._LoginTest()
+    def _LoginTest(self,user=None,passwd=None):
+        if self.cj:#检测到有效cookies时使用cookies登录
+            req=self.Session().get(self.USER_INFO)
+            js=json.loads(req.text)
+            if js['data']['is_login'] == True:
+                print("使用cookies登陆成功!\nHello %s welcome to back tieba!"%js['data']['user_name_show'])
+            else:
+                print("cookies登陆失败")
+        else:
+            pass
+    def _title_print(self):
+        print('贴吧名称: %s'%self.title_dict['name'])
+        for i in range(len(self.title_dict)-1):#title_dict长度，去掉name
+            print('%d.href=/p%s;title=%s'%(i+1,self.title_dict[str(i+1)][0],self.title_dict[str(i+1)][1]))
+    def _CookieTest(self):
         try:
             cj=http.cookiejar.MozillaCookieJar(self.CookiePath+'/mozilla-cookies.txt')
             cj.load()
-            print('cookies login correct')
+            print('cookies loading correctly')
             return cj
         except:
             print('cookie file seems discorrect,you can make a new cookies file \nfrom firefox firebug and save to your ${HOME}/baidu-cookies')
@@ -108,11 +133,22 @@ class BaiduTieba(object):
         url='https://tieba.baidu.com/f?kw=%s&fr=index'%tieba_name
         self.title_dict={}
         req=self.Session(agent).get(url)
-        P=htmlparser()
+        P=titleparser()
         P.feed=P.feedupdate(P.feed)#feed方法装饰升级
         P.feed(req.text)
         self.title_dict=P.title_dict
+        self._title_print()
+        with open('title_dict.log','w') as fp:
+            fp.write(json.dumps(P.title_dict))
         return req
+    def SubjectReader(self,title_index,page_number=1):
+        title_index=str(title_index)
+        if self.title_dict:
+            sub_url="https://tieba.baidu.com/p/%s?pn=%d"%(self.title_dict[title_index][0],page_number)
+            req=self.Session().get(sub_url)
+            return req
+        else:
+            print('no title_dict detected,run TiebaList first!')
     def reply(self,index,ptype='reply',*args):
         pass
     def SaverHtml(self,req):
